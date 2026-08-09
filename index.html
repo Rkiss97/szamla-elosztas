@@ -129,9 +129,13 @@
     gap: 16px;
     align-items: stretch;
   }
-  .grid .section { display: flex; flex-direction: column; }
+  .grid .section {
+    display: flex;
+    flex-direction: column;
+  }
   @media (max-width: 720px) {
     .grid { grid-template-columns: 1fr; }
+    .grid .section { display: block; }
   }
 
   /* HEADER — sima, ráül a színes háttérre */
@@ -509,9 +513,16 @@
   .status-msg.info,
   .status-msg.error,
   .status-msg.success,
-  .status-msg.warn {
+  .status-msg.warn,
+  .status-msg.total {
     background: rgba(255, 255, 255, 0.1);
     color: var(--ink);
+  }
+  .status-msg.total {
+    font-family: 'Fraunces', serif !important;
+    font-size: 15px;
+    font-weight: 500;
+    font-style: italic;
   }
 
   .spinner {
@@ -619,9 +630,9 @@
       radial-gradient(ellipse at 85% 70%, rgba(255, 255, 255, 0.2), transparent 40%);
     pointer-events: none;
   }
-  .person-btn:hover { transform: translateY(-1px) scale(1.05); border-color: rgba(255, 255, 255, 0.7); }
-  .person-btn:active { transform: scale(0.95); }
-  .person-btn.active { border-width: 2px; border-color: rgba(255, 255, 255, 0.9); font-weight: 700; transform: scale(1.05); }
+  .person-btn:hover { border-color: rgba(255, 255, 255, 0.7); }
+  .person-btn:active { }
+  .person-btn.active { border-width: 2px; border-color: rgba(255, 255, 255, 0.95); font-weight: 700; background: rgba(255, 255, 255, 0.15); }
 
   .add-item {
     padding: 16px 0 4px;
@@ -1195,6 +1206,7 @@ function computeTotals(){
 
   const svc = {};
   people.forEach(pn => svc[pn] = 0);
+  const totalSub = people.reduce((s,pn) => s+sub[pn], 0);
   people.forEach(pn => svc[pn] = service / people.length);
 
   const t = document.getElementById('totals');
@@ -1215,15 +1227,17 @@ function computeTotals(){
   const itemsSum = items.reduce((s,it) => s+it.p, 0);
   const grand = totalSub + service;
   const expected = itemsSum + service;
+  const sumPeople = people.reduce((s,pn) => s + Math.round(sub[pn]+svc[pn]), 0);
+
   if(items.length === 0) {
     u.className = 'status-msg';
     u.innerHTML = '';
   } else if(unassigned > 0){
     u.className = 'status-msg warn';
-    u.innerHTML = `⚠ Még kiosztani: ${fmtFt(unassigned)} · ${fmtFt(grand)} / ${fmtFt(expected)}`;
+    u.innerHTML = `⚠ Még kiosztani: ${fmtFt(unassigned)} · Kiosztva eddig: ${fmtFt(grand)} / ${fmtFt(expected)}`;
   } else {
-    u.className = 'status-msg';
-    u.innerHTML = '';
+    u.className = 'status-msg total';
+    u.innerHTML = `Számla összesen · ${fmtFt(expected)} · Fejenkénti összeg: ${fmtFt(sumPeople)}`;
   }
 }
 
