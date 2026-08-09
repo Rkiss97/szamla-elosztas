@@ -46,13 +46,22 @@ Válaszolj CSAK egy JSON objektummal, semmi más szöveg, semmi markdown backtic
 - Az "items" LISTA CSAK ételeket és italokat tartalmazhat, semmi mást
 - Ha több felszolgálási díj sor van, add össze őket és tedd a "service_fee"-be
 
+⚠️ PONTOS SZÁMOK - NE KEREKÍTS!
+- Az árakat és összegeket PONTOSAN OLVASD KI a nyugtáról, ne kerekítsd őket
+- Ha "50 042" áll a nyugtán, akkor 50042 legyen, NEM 50040
+- Ha "5362" áll, akkor 5362 legyen, NEM 5360
+- Nézd meg minden számjegyet külön-külön, különös figyelemmel az utolsó számjegyre
+- A magyar nyugtákon a számokban lehet szóköz ezres elválasztóként (pl. "50 042") — a szóközöket vedd ki és számként kezeld
+
 TOVÁBBI SZABÁLYOK:
 - Minden fogyasztási tételt külön sorként add meg (pl. ha 5x Aperol Spritz van, az 5 külön elem "Aperol Spritz #1" ... "Aperol Spritz #5" néven)
 - A "total" a nyugtán szereplő ÖSSZESEN érték forintban (ez tartalmazza a felszolgálási díjat is)
 - Az árakat számként add meg (integer), forintban, szóközök nélkül
 - A tétel neveit tartsd rövidnek (max 40 karakter)
 
-ELLENŐRZÉS mielőtt válaszolsz: nézd meg az items listát - ha bármely elem neve "felszolgálási", "szerviz", "service", "díj" szót tartalmaz, azt VEDD KI és tedd a service_fee-be.`;
+ELLENŐRZÉS mielőtt válaszolsz:
+1. Nézd meg az items listát - ha bármely elem neve "felszolgálási", "szerviz", "service", "díj" szót tartalmaz, azt VEDD KI és tedd a service_fee-be.
+2. Ellenőrizd MINDEN szám utolsó számjegyét - biztos hogy nem kerekítettél?`;
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
