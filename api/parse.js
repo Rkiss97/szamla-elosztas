@@ -1,6 +1,10 @@
 // Vercel Serverless Function — Claude API-t hívja a képfelismeréshez
 // Az API kulcs a Vercel környezeti változóból (ANTHROPIC_API_KEY) jön, nem kerül a böngészőbe.
 
+export const config = {
+  maxDuration: 60,
+};
+
 export default async function handler(req, res) {
   // CORS engedélyezés
   res.setHeader('Access-Control-Allow-Origin', '*');
