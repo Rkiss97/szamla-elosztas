@@ -1,0 +1,8 @@
+{
+  "name": "szamla-elosztas",
+  "version": "1.0.0",
+  "description": "Interaktív számlaelosztó OCR-rel",
+  "engines": {
+    "node": ">=18"
+  }
+}
