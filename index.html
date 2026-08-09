@@ -1109,8 +1109,21 @@ async function parseReceipt(){
     }
 
     const parsed = await response.json();
-    items = parsed.items.map(it => ({ n: it.name, p: it.price, who: new Set() }));
-    service = parsed.service_fee || 0;
+    // Extra safety: filter out any items that look like service fees
+    let extraService = 0;
+    const filteredItems = (parsed.items || []).filter(it => {
+      const n = (it.name || '').toLowerCase();
+      if (n.includes('felszolgál') || n.includes('szerviz') || n.includes('service')) {
+        extraService += it.price || 0;
+        return false;
+      }
+      return true;
+    });
+    items = filteredItems.map(it => ({ n: it.name, p: it.price, who: new Set() }));
+    service = (parsed.service_fee || 0) + extraService;
+    // Update the svc input field
+    const svcInp = document.getElementById('svcInput');
+    if(svcInp) svcInp.value = service;
 
     setStatus('parseStatus', `✓ ${items.length} tétel · díj ${fmtFt(service)} · összesen ${fmtFt(parsed.total || 0)}`, 'success');
     document.getElementById('itemsSection').style.display = 'block';

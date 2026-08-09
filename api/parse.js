@@ -36,9 +36,12 @@ Válaszolj CSAK egy JSON objektummal, semmi más szöveg, semmi markdown backtic
   "total": 0
 }
 
-FONTOS:
-- Minden tételt külön sorként add meg (pl. ha 5x Aperol Spritz van, az 5 külön elem "Aperol Spritz #1" ... "Aperol Spritz #5" néven)
-- A "service_fee" az ÖSSZES felszolgálási díj összege (ha több sor van, add össze)
+KRITIKUS SZABÁLY:
+- A felszolgálási díjat (magyarul: "felszolgálási díj", "szerviz díj", "service") CSAK a "service_fee" mezőbe tedd, NE tedd bele az "items" listába! Az items csak fogyasztási tételeket tartalmazhat (ételek, italok).
+
+TOVÁBBI FONTOS SZABÁLYOK:
+- Minden fogyasztási tételt külön sorként add meg (pl. ha 5x Aperol Spritz van, az 5 külön elem "Aperol Spritz #1" ... "Aperol Spritz #5" néven)
+- A "service_fee" az ÖSSZES felszolgálási díj összege (ha több sor van a nyugtán, add össze)
 - A "total" a nyugtán szereplő ÖSSZESEN érték forintban
 - Az árakat számként add meg (integer), forintban, szóközök nélkül
 - A tétel neveit tartsd rövidnek (max 40 karakter)`;
