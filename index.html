@@ -1102,11 +1102,6 @@ function setStatus(id, msg, type){
 async function parseReceipt(){
   if(!uploadedImages.length) return;
 
-  console.log('Beolvasás indul, képek száma:', uploadedImages.length);
-  uploadedImages.forEach((img, i) => {
-    console.log(`Kép ${i+1}: ${(img.data.length/1024).toFixed(0)} KB (data URL hossz)`);
-  });
-
   // Az utolsó fókuszban lévő név input elmentése (blur trigger)
   if(document.activeElement && document.activeElement.tagName === 'INPUT'){
     document.activeElement.blur();
@@ -1119,12 +1114,7 @@ async function parseReceipt(){
   // Egyszerre indítjuk mindegyiket - így párhuzamosan mennek
   const parsePromises = uploadedImages.map(async (img, i) => {
     const match = img.data.match(/^data:(image\/[^;]+);base64,(.+)$/);
-    if(!match){
-      console.error(`Kép ${i+1}: hibás data URL formátum`);
-      return { error: `${i+1}. kép: hibás formátum` };
-    }
-
-    console.log(`Kép ${i+1} küldése (${(match[2].length/1024).toFixed(0)} KB base64)`);
+    if(!match){ return { error: `${i+1}. kép: hibás formátum` }; }
 
     try {
       const response = await fetch('/api/parse', {
@@ -1133,25 +1123,19 @@ async function parseReceipt(){
         body: JSON.stringify({ image_base64: match[2], media_type: match[1] })
       });
 
-      console.log(`Kép ${i+1} válasz status:`, response.status);
-
       if(!response.ok){
         const err = await response.json().catch(() => ({error: 'HTTP ' + response.status}));
-        console.error(`Kép ${i+1} hiba:`, err);
         return { error: `${i+1}. kép: ${err.error || 'HTTP ' + response.status}` };
       }
 
       const parsed = await response.json();
-      console.log(`Kép ${i+1} eredmény:`, parsed.items?.length, 'tétel, díj:', parsed.service_fee, 'összesen:', parsed.total);
       return { parsed };
     } catch(err) {
-      console.error(`Kép ${i+1} exception:`, err);
       return { error: `${i+1}. kép: ${err.message}` };
     }
   });
 
   const results = await Promise.all(parsePromises);
-  console.log('Összes eredmény:', results);
 
   const allItems = [];
   let totalService = 0;
@@ -1185,7 +1169,7 @@ async function parseReceipt(){
 
     allItems.push(...filteredItems);
     totalService += thisService;
-    totalSum += parsedTotal;
+    totalSum += itemsTotal + thisService;
   });
 
   items = allItems.map(it => ({ n: it.name, p: it.price, who: new Set() }));
