@@ -1120,7 +1120,21 @@ async function parseReceipt(){
       return true;
     });
     items = filteredItems.map(it => ({ n: it.name, p: it.price, who: new Set() }));
-    service = (parsed.service_fee || 0) + extraService;
+
+    // Kiszámoljuk a tételek + service_fee összegét
+    const itemsTotal = filteredItems.reduce((s, it) => s + (it.price || 0), 0);
+    const parsedTotal = parsed.total || 0;
+    const parsedFee = parsed.service_fee || 0;
+
+    // Ha a Claude dupla adta a service fee-t (akkor a service_fee önmaga = 2× a valós)
+    // Ellenőrzés: ha itemsTotal + parsedFee > parsedTotal → dupla van
+    if (parsedTotal > 0 && itemsTotal + parsedFee + extraService > parsedTotal + 5) {
+      // A tényleges service fee = total - items
+      service = Math.max(0, parsedTotal - itemsTotal);
+    } else {
+      service = parsedFee + extraService;
+    }
+
     // Update the svc input field
     const svcInp = document.getElementById('svcInput');
     if(svcInp) svcInp.value = service;
