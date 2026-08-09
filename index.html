@@ -1161,9 +1161,8 @@ async function parseReceipt(){
     const parsedFee = parsed.service_fee || 0;
 
     let thisService;
-    // Ha van érvényes total, akkor a felszolgálási díjat abból számoljuk (pontosabb)
-    if (parsedTotal > 0 && parsedTotal > itemsTotal) {
-      thisService = parsedTotal - itemsTotal;
+    if (parsedTotal > 0 && itemsTotal + parsedFee + extraService > parsedTotal + 5) {
+      thisService = Math.max(0, parsedTotal - itemsTotal);
     } else {
       thisService = parsedFee + extraService;
     }
