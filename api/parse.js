@@ -25,7 +25,7 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Hiányzó image_base64 vagy media_type' });
     }
 
-    const prompt = `Ez egy magyar éttermi/kávézói nyugta. Olvasd ki az összes tételt és a felszolgálási díja(ka)t.
+    const prompt = `Ez egy magyar éttermi/kávézói nyugta. Olvasd ki a fogyasztási tételeket és a felszolgálási díja(ka)t.
 
 Válaszolj CSAK egy JSON objektummal, semmi más szöveg, semmi markdown backtick:
 {
@@ -36,15 +36,19 @@ Válaszolj CSAK egy JSON objektummal, semmi más szöveg, semmi markdown backtic
   "total": 0
 }
 
-KRITIKUS SZABÁLY:
-- A felszolgálási díjat (magyarul: "felszolgálási díj", "szerviz díj", "service") CSAK a "service_fee" mezőbe tedd, NE tedd bele az "items" listába! Az items csak fogyasztási tételeket tartalmazhat (ételek, italok).
+⚠️ ABSZOLÚT KRITIKUS SZABÁLY - EZT NE SZEGD MEG:
+- Ha a nyugtán van "Felszolgálási díj" vagy "Szerviz díj" sor, azt CSAK a "service_fee" mezőbe tedd
+- SOHA, semmilyen körülmények között NE tedd a felszolgálási díjat az "items" listába
+- Az "items" LISTA CSAK ételeket és italokat tartalmazhat, semmi mást
+- Ha több felszolgálási díj sor van, add össze őket és tedd a "service_fee"-be
 
-TOVÁBBI FONTOS SZABÁLYOK:
+TOVÁBBI SZABÁLYOK:
 - Minden fogyasztási tételt külön sorként add meg (pl. ha 5x Aperol Spritz van, az 5 külön elem "Aperol Spritz #1" ... "Aperol Spritz #5" néven)
-- A "service_fee" az ÖSSZES felszolgálási díj összege (ha több sor van a nyugtán, add össze)
-- A "total" a nyugtán szereplő ÖSSZESEN érték forintban
+- A "total" a nyugtán szereplő ÖSSZESEN érték forintban (ez tartalmazza a felszolgálási díjat is)
 - Az árakat számként add meg (integer), forintban, szóközök nélkül
-- A tétel neveit tartsd rövidnek (max 40 karakter)`;
+- A tétel neveit tartsd rövidnek (max 40 karakter)
+
+ELLENŐRZÉS mielőtt válaszolsz: nézd meg az items listát - ha bármely elem neve "felszolgálási", "szerviz", "service", "díj" szót tartalmaz, azt VEDD KI és tedd a service_fee-be.`;
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
