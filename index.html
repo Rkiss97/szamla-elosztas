@@ -924,7 +924,7 @@
   <div class="people-controls">
     <label>Hány fő</label>
     <input type="number" id="peopleCount" min="2" max="10" value="3">
-    <button class="btn" onclick="setupPeople()">Beállít</button>
+    <button class="btn primary" onclick="setupPeople()">Beállít</button>
   </div>
   <div class="people-list" id="peopleList"></div>
 </section>
@@ -936,11 +936,11 @@
   </div>
   <p class="section-hint">Fotózd le vagy húzd ide a számlát — automatikusan beolvassa a tételeket.</p>
   <label class="upload-area" id="uploadArea">
-    <input type="file" id="fileInput" accept="image/*">
+    <input type="file" id="fileInput" accept="image/*" multiple>
     <div id="uploadPrompt">
       <div class="upload-icon">+</div>
       <div class="upload-title">Kép feltöltése</div>
-      <div class="upload-hint">JPG · PNG · húzd ide vagy kattints</div>
+      <div class="upload-hint">JPG · PNG · több kép is lehet</div>
     </div>
   </label>
   <div class="btn-row">
@@ -997,7 +997,6 @@
 let people = ["", "", ""];
 let items = [];
 let service = 0;
-let uploadedImageData = null;
 
 const personTheme = [
   {bg:'var(--p1-bg)', ink:'var(--p1-ink)'},
@@ -1043,7 +1042,7 @@ function renderPeople(){
     inp.type = 'text';
     inp.value = name;
     inp.placeholder = 'név';
-    inp.oninput = () => autoSizeInput(inp);
+    inp.oninput = () => { people[i] = inp.value; autoSizeInput(inp); };
     inp.onchange = e => { people[i] = e.target.value; renderItems(); };
     wrap.appendChild(inp);
     c.appendChild(wrap);
@@ -1063,18 +1062,35 @@ uploadArea.addEventListener('drop', e => {
   if(e.dataTransfer.files[0]) { fileInput.files = e.dataTransfer.files; handleFile(); }
 });
 
+let uploadedImages = []; // array of {data, name}
+
 function handleFile(){
-  const file = fileInput.files[0];
-  if(!file) return;
-  const reader = new FileReader();
-  reader.onload = e => {
-    uploadedImageData = e.target.result;
-    uploadArea.classList.add('has-image');
-    document.getElementById('uploadPrompt').innerHTML = `<img src="${uploadedImageData}" alt="Feltöltött számla"><div class="upload-hint" style="margin-top:10px;">Kattints másik képhez</div>`;
-    document.getElementById('parseBtn').disabled = false;
-    setStatus('parseStatus', 'Kép betöltve. Nyomd meg a Beolvasás gombot.', 'info');
-  };
-  reader.readAsDataURL(file);
+  const files = Array.from(fileInput.files);
+  if(!files.length) return;
+
+  uploadedImages = [];
+  let loaded = 0;
+  files.forEach((file, idx) => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      uploadedImages[idx] = { data: e.target.result, name: file.name };
+      loaded++;
+      if(loaded === files.length){
+        // All loaded — render previews
+        uploadArea.classList.add('has-image');
+        const previews = uploadedImages.map(img =>
+          `<img src="${img.data}" alt="Számla kép" style="max-height:100px; margin:4px;">`
+        ).join('');
+        document.getElementById('uploadPrompt').innerHTML = `
+          <div style="display:flex; flex-wrap:wrap; gap:6px; justify-content:center;">${previews}</div>
+          <div class="upload-hint" style="margin-top:10px;">${files.length} kép betöltve · Kattints másik választáshoz</div>
+        `;
+        document.getElementById('parseBtn').disabled = false;
+        setStatus('parseStatus', `${files.length} kép betöltve. Nyomd meg a Beolvasás gombot.`, 'info');
+      }
+    };
+    reader.readAsDataURL(file);
+  });
 }
 
 function setStatus(id, msg, type){
@@ -1084,72 +1100,88 @@ function setStatus(id, msg, type){
 }
 
 async function parseReceipt(){
-  if(!uploadedImageData) return;
+  if(!uploadedImages.length) return;
+
+  // Az utolsó fókuszban lévő név input elmentése (blur trigger)
+  if(document.activeElement && document.activeElement.tagName === 'INPUT'){
+    document.activeElement.blur();
+  }
+
   const btn = document.getElementById('parseBtn');
   btn.disabled = true;
-  setStatus('parseStatus', '<span class="spinner"></span>Beolvasás folyamatban...', 'info');
 
-  const match = uploadedImageData.match(/^data:(image\/[^;]+);base64,(.+)$/);
-  if(!match){
-    setStatus('parseStatus', 'Hibás képformátum.', 'error');
-    btn.disabled = false;
-    return;
-  }
+  const allItems = [];
+  let totalService = 0;
+  let totalSum = 0;
+  let errors = [];
 
-  try {
-    const response = await fetch('/api/parse', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ image_base64: match[2], media_type: match[1] })
-    });
+  for(let i = 0; i < uploadedImages.length; i++){
+    const img = uploadedImages[i];
+    setStatus('parseStatus', `<span class="spinner"></span>Beolvasás folyamatban... (${i+1}/${uploadedImages.length})`, 'info');
 
-    if(!response.ok){
-      const err = await response.json().catch(() => ({error: 'Ismeretlen hiba'}));
-      throw new Error(err.error || `HTTP ${response.status}`);
-    }
+    const match = img.data.match(/^data:(image\/[^;]+);base64,(.+)$/);
+    if(!match){ errors.push(`${i+1}. kép: hibás formátum`); continue; }
 
-    const parsed = await response.json();
-    // Extra safety: filter out any items that look like service fees
-    let extraService = 0;
-    const filteredItems = (parsed.items || []).filter(it => {
-      const n = (it.name || '').toLowerCase();
-      if (n.includes('felszolgál') || n.includes('szerviz') || n.includes('service')) {
-        extraService += it.price || 0;
-        return false;
+    try {
+      const response = await fetch('/api/parse', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image_base64: match[2], media_type: match[1] })
+      });
+
+      if(!response.ok){
+        const err = await response.json().catch(() => ({error: 'Ismeretlen hiba'}));
+        throw new Error(err.error || `HTTP ${response.status}`);
       }
-      return true;
-    });
-    items = filteredItems.map(it => ({ n: it.name, p: it.price, who: new Set() }));
 
-    // Kiszámoljuk a tételek + service_fee összegét
-    const itemsTotal = filteredItems.reduce((s, it) => s + (it.price || 0), 0);
-    const parsedTotal = parsed.total || 0;
-    const parsedFee = parsed.service_fee || 0;
+      const parsed = await response.json();
+      let extraService = 0;
+      const filteredItems = (parsed.items || []).filter(it => {
+        const n = (it.name || '').toLowerCase();
+        if (n.includes('felszolgál') || n.includes('szerviz') || n.includes('service')) {
+          extraService += it.price || 0;
+          return false;
+        }
+        return true;
+      });
 
-    // Ha a Claude dupla adta a service fee-t (akkor a service_fee önmaga = 2× a valós)
-    // Ellenőrzés: ha itemsTotal + parsedFee > parsedTotal → dupla van
-    if (parsedTotal > 0 && itemsTotal + parsedFee + extraService > parsedTotal + 5) {
-      // A tényleges service fee = total - items
-      service = Math.max(0, parsedTotal - itemsTotal);
-    } else {
-      service = parsedFee + extraService;
+      const itemsTotal = filteredItems.reduce((s, it) => s + (it.price || 0), 0);
+      const parsedTotal = parsed.total || 0;
+      const parsedFee = parsed.service_fee || 0;
+
+      let thisService;
+      if (parsedTotal > 0 && itemsTotal + parsedFee + extraService > parsedTotal + 5) {
+        thisService = Math.max(0, parsedTotal - itemsTotal);
+      } else {
+        thisService = parsedFee + extraService;
+      }
+
+      allItems.push(...filteredItems);
+      totalService += thisService;
+      totalSum += parsedTotal;
+    } catch(err) {
+      errors.push(`${i+1}. kép: ${err.message}`);
     }
-
-    // Update the svc input field
-    const svcInp = document.getElementById('svcInput');
-    if(svcInp) svcInp.value = service;
-
-    setStatus('parseStatus', `✓ ${items.length} tétel · díj ${fmtFt(service)} · összesen ${fmtFt(parsed.total || 0)}`, 'success');
-    document.getElementById('itemsSection').style.display = 'block';
-    renderItems();
-    document.getElementById('itemsSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
-  } catch(err) {
-    setStatus('parseStatus', `Hiba: ${err.message}. Add hozzá kézzel a tételeket.`, 'error');
-    document.getElementById('itemsSection').style.display = 'block';
-    renderItems();
-  } finally {
-    btn.disabled = false;
   }
+
+  items = allItems.map(it => ({ n: it.name, p: it.price, who: new Set() }));
+  service = totalService;
+
+  const svcInp = document.getElementById('svcInput');
+  if(svcInp) svcInp.value = service;
+
+  if(errors.length && !items.length){
+    setStatus('parseStatus', `Hiba: ${errors.join('; ')}. Add hozzá kézzel a tételeket.`, 'error');
+  } else if(errors.length){
+    setStatus('parseStatus', `⚠ ${items.length} tétel beolvasva, de ${errors.length} kép hibás.`, 'warn');
+  } else {
+    setStatus('parseStatus', `✓ ${items.length} tétel · díj ${fmtFt(service)} · összesen ${fmtFt(totalSum)}`, 'success');
+  }
+
+  document.getElementById('itemsSection').style.display = 'block';
+  renderItems();
+  document.getElementById('itemsSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  btn.disabled = false;
 }
 
 function addManualItem(){
@@ -1244,7 +1276,7 @@ function computeTotals(){
     bib.innerHTML = `
       <div class="bib-name">${pn || 'név'}<span class="pnum">P${String(i+1).padStart(2,'0')}</span></div>
       <div class="bib-total">${fmt(total)}<span class="cur">Ft</span></div>
-      <div class="bib-breakdown">fogy · ${fmt(sub[pn])}<br>díj · ${fmt(svc[pn])}</div>
+      <div class="bib-breakdown">fogyasztás · ${fmt(sub[pn])} Ft<br>felszolgálási díj · ${fmt(svc[pn])} Ft</div>
     `;
     t.appendChild(bib);
   });
