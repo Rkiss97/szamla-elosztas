@@ -1141,6 +1141,7 @@ async function parseReceipt(){
   let totalService = 0;
   let totalSum = 0;
   const errors = [];
+  const seenTotals = new Set(); // duplikátum észlelés
 
   results.forEach(result => {
     if(result.error){ errors.push(result.error); return; }
@@ -1160,12 +1161,7 @@ async function parseReceipt(){
     const parsedTotal = parsed.total || 0;
     const parsedFee = parsed.service_fee || 0;
 
-    let thisService;
-    if (parsedTotal > 0 && itemsTotal + parsedFee + extraService > parsedTotal + 5) {
-      thisService = Math.max(0, parsedTotal - itemsTotal);
-    } else {
-      thisService = parsedFee + extraService;
-    }
+    const thisService = parsedFee + extraService;
 
     allItems.push(...filteredItems);
     totalService += thisService;
