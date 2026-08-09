@@ -1109,18 +1109,12 @@ async function parseReceipt(){
 
   const btn = document.getElementById('parseBtn');
   btn.disabled = true;
+  setStatus('parseStatus', `<span class="spinner"></span>Beolvasás folyamatban... (${uploadedImages.length} kép)`, 'info');
 
-  const allItems = [];
-  let totalService = 0;
-  let totalSum = 0;
-  let errors = [];
-
-  for(let i = 0; i < uploadedImages.length; i++){
-    const img = uploadedImages[i];
-    setStatus('parseStatus', `<span class="spinner"></span>Beolvasás folyamatban... (${i+1}/${uploadedImages.length})`, 'info');
-
+  // Egyszerre indítjuk mindegyiket - így párhuzamosan mennek
+  const parsePromises = uploadedImages.map(async (img, i) => {
     const match = img.data.match(/^data:(image\/[^;]+);base64,(.+)$/);
-    if(!match){ errors.push(`${i+1}. kép: hibás formátum`); continue; }
+    if(!match){ return { error: `${i+1}. kép: hibás formátum` }; }
 
     try {
       const response = await fetch('/api/parse', {
@@ -1130,39 +1124,53 @@ async function parseReceipt(){
       });
 
       if(!response.ok){
-        const err = await response.json().catch(() => ({error: 'Ismeretlen hiba'}));
-        throw new Error(err.error || `HTTP ${response.status}`);
+        const err = await response.json().catch(() => ({error: 'HTTP ' + response.status}));
+        return { error: `${i+1}. kép: ${err.error || 'HTTP ' + response.status}` };
       }
 
       const parsed = await response.json();
-      let extraService = 0;
-      const filteredItems = (parsed.items || []).filter(it => {
-        const n = (it.name || '').toLowerCase();
-        if (n.includes('felszolgál') || n.includes('szerviz') || n.includes('service')) {
-          extraService += it.price || 0;
-          return false;
-        }
-        return true;
-      });
-
-      const itemsTotal = filteredItems.reduce((s, it) => s + (it.price || 0), 0);
-      const parsedTotal = parsed.total || 0;
-      const parsedFee = parsed.service_fee || 0;
-
-      let thisService;
-      if (parsedTotal > 0 && itemsTotal + parsedFee + extraService > parsedTotal + 5) {
-        thisService = Math.max(0, parsedTotal - itemsTotal);
-      } else {
-        thisService = parsedFee + extraService;
-      }
-
-      allItems.push(...filteredItems);
-      totalService += thisService;
-      totalSum += parsedTotal;
+      return { parsed };
     } catch(err) {
-      errors.push(`${i+1}. kép: ${err.message}`);
+      return { error: `${i+1}. kép: ${err.message}` };
     }
-  }
+  });
+
+  const results = await Promise.all(parsePromises);
+
+  const allItems = [];
+  let totalService = 0;
+  let totalSum = 0;
+  const errors = [];
+
+  results.forEach(result => {
+    if(result.error){ errors.push(result.error); return; }
+    const parsed = result.parsed;
+
+    let extraService = 0;
+    const filteredItems = (parsed.items || []).filter(it => {
+      const n = (it.name || '').toLowerCase();
+      if (n.includes('felszolgál') || n.includes('szerviz') || n.includes('service')) {
+        extraService += it.price || 0;
+        return false;
+      }
+      return true;
+    });
+
+    const itemsTotal = filteredItems.reduce((s, it) => s + (it.price || 0), 0);
+    const parsedTotal = parsed.total || 0;
+    const parsedFee = parsed.service_fee || 0;
+
+    let thisService;
+    if (parsedTotal > 0 && itemsTotal + parsedFee + extraService > parsedTotal + 5) {
+      thisService = Math.max(0, parsedTotal - itemsTotal);
+    } else {
+      thisService = parsedFee + extraService;
+    }
+
+    allItems.push(...filteredItems);
+    totalService += thisService;
+    totalSum += parsedTotal;
+  });
 
   items = allItems.map(it => ({ n: it.name, p: it.price, who: new Set() }));
   service = totalService;
@@ -1173,7 +1181,7 @@ async function parseReceipt(){
   if(errors.length && !items.length){
     setStatus('parseStatus', `Hiba: ${errors.join('; ')}. Add hozzá kézzel a tételeket.`, 'error');
   } else if(errors.length){
-    setStatus('parseStatus', `⚠ ${items.length} tétel beolvasva, de ${errors.length} kép hibás.`, 'warn');
+    setStatus('parseStatus', `⚠ ${items.length} tétel beolvasva, de ${errors.length} kép hibás: ${errors.join('; ')}`, 'warn');
   } else {
     setStatus('parseStatus', `✓ ${items.length} tétel · díj ${fmtFt(service)} · összesen ${fmtFt(totalSum)}`, 'success');
   }
